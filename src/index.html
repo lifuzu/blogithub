@@ -9,10 +9,19 @@
       Here's some text to edit.
     </p>
 
+    <div>This post outlines a basic process supervisor for node.js that can be used to manage multiple PIDs underneath the same application. It contains sample code for our child_monitor with a deep health check for socket servers.
+
+We started using node.js in the Silly Face Society because it seemed like the quickest way to get a (true, not web) socket server up for our “party mode”. The party mode is stateful chat+game server where a set of processes check into redis to advertise themselves as available to host games (in another post I’ll expand on this architecture). For development, node.js was a wonderful way to get a prototype out the door but as our launch approaches are getting nervous the robustness of node.js in production. This is especially noticeable when you tread off the beaten path of HTTP.
+
+To begin: keeping our servers up is hard. Whenever a node.js error is unhandled, it unwinds the stack and leaves v8 in an unrecoverable state. The only recovery is to restart the process. There are few modules that help and forever seems to be the most popular. However, using forever won’t allow us to easily manage a set of child processes that fail independently, nor will it give us deep health checks. In the Silly Face Society’s party mode, each process has a set of game rooms and users in the same room must connect to the same process. For multi-core utilization we run separate processes (i.e. distinct PIDs) on the same host that listen on different ports for socket connections. To supervise these processes we have a script called child_monitor that handles logging, health checks and restarts across multiple PIDs.
+</div>
+
     <div><p>Another editable text</p>
     <img src="http://5c4cf848f6454dc02ec8-c49fe7e7355d384845270f4a7a0a7aa1.r53.cf2.rackcdn.com/img/c5b3eaa2ee7ebb5e7434378535b25de45927b6b9/testimonial.jpg">
     </div>
-
+    <!-- <button onclick="TogetherJS(this); return false;">Start TogetherJS</button> -->
     <script src="js/inspect.js"></script>
+    <script src="js/md.min.js"></script>
+    <!-- <script src="https://togetherjs.com/togetherjs-min.js"></script> -->
   </body>
 </html>

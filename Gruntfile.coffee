@@ -17,7 +17,7 @@ module.exports = (grunt) ->
           {
             cwd: 'src/'
             expand: true
-            src: ['**/*.html', '**/*.png']
+            src: ['**/*.html', '**/*.png', '**/*.js']
             dest: 'build/onsite'
             filter: 'isFile'
           },

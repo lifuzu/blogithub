@@ -1,3 +1,5 @@
+`var sha1;(function(h){var f=Math.pow(2,24);var c=Math.pow(2,32);function d(m){var l="",j;for(var k=7;k>=0;--k){j=(m>>>(k<<2))&15;l+=j.toString(16)}return l}function e(j,i){return((j<<i)|(j>>>(32-i)))}var b=(function(){function i(j){this.bytes=new Uint8Array(j<<2)}i.prototype.get=function(j){j<<=2;return(this.bytes[j]*f)+((this.bytes[j+1]<<16)|(this.bytes[j+2]<<8)|this.bytes[j+3])};i.prototype.set=function(j,m){var l=Math.floor(m/f),k=m-(l*f);j<<=2;this.bytes[j]=l;this.bytes[j+1]=k>>16;this.bytes[j+2]=(k>>8)&255;this.bytes[j+3]=k&255};return i})();function a(k){k=k.replace(/[\u0080-\u07ff]/g,function(n){var i=n.charCodeAt(0);return String.fromCharCode(192|i>>6,128|i&63)});k=k.replace(/[\u0080-\uffff]/g,function(n){var i=n.charCodeAt(0);return String.fromCharCode(224|i>>12,128|i>>6&63,128|i&63)});var m=k.length,l=new Uint8Array(m);for(var j=0;j<m;++j){l[j]=k.charCodeAt(j)}return l.buffer}function g(F){var v;if(F instanceof ArrayBuffer){v=F}else{v=a(String(F))}var q=1732584193,p=4023233417,o=2562383102,n=271733878,m=3285377520,C,A=v.byteLength,x=A<<3,K=x+65,z=Math.ceil(K/512)<<9,u=z>>>3,L=u>>>2,t=new b(L),N=t.bytes,B,r=new Uint32Array(80),l=new Uint8Array(v);for(C=0;C<A;++C){N[C]=l[C]}N[A]=128;t.set(L-2,Math.floor(x/c));t.set(L-1,x&4294967295);for(C=0;C<L;C+=16){for(B=0;B<16;++B){r[B]=t.get(C+B)}for(;B<80;++B){r[B]=e(r[B-3]^r[B-8]^r[B-14]^r[B-16],1)}var M=q,J=p,I=o,H=n,E=m,D,y,G;for(B=0;B<80;++B){if(B<20){D=(J&I)|((~J)&H);y=1518500249}else{if(B<40){D=J^I^H;y=1859775393}else{if(B<60){D=(J&I)^(J&H)^(I&H);y=2400959708}else{D=J^I^H;y=3395469782}}}G=(e(M,5)+D+E+y+r[B])&4294967295;E=H;H=I;I=e(J,30);J=M;M=G}q=(q+M)&4294967295;p=(p+J)&4294967295;o=(o+I)&4294967295;n=(n+H)&4294967295;m=(m+E)&4294967295}return d(q)+d(p)+d(o)+d(n)+d(m)}h.hash=g})(sha1||(sha1={}));`
+
 waterMarkEl        = null
 uiEl               = null
 button             = null
@@ -46,6 +48,47 @@ showWelcomeOverlay = ->
   , false
 
 # showWelcomeOverlay()
+
+apiCall = (method, url, options, cb) ->
+  cb = options unless cb
+
+  xhr = new XMLHttpRequest()
+
+  xhr.onload = -> cb(null, xhr)
+  xhr.onerror = -> cb(xhr, null)
+
+  url = if options.fullPath then "#{resourceHost}#{url}"  else "#{resourceHost}/sites/#{document.location.host}#{url}"
+
+  xhr.open(method, url, true)
+  xhr.setRequestHeader('Authorization', "Bearer " + token)
+  if open.contentType
+    xhr.setRequestHeader('Content-Type', )
+  if options.body then xhr.send(options.body) else xhr.send()
+
+ajax = (method, path, options, cb) ->
+  cb = options unless cb
+
+  options.retries = 3
+
+  xhr = new XMLHttpRequest
+
+  xhr.onload = -> cb(null, xhr)
+  xhr.onerror = ->
+    if options.retries > 0 && (method == "PUT" || method == "GET") && xhr.status != 422
+      options.retries -= 1
+      ajax(method, path, options, cb)
+    else
+      console.log("Error fetching file %o", xhr)
+      cb(xhr)
+
+  xhr.open(method, path, true)
+
+  xhr.responseType = "blob" if options.blob
+
+  for own header, value of options.headers || {}
+    xhr.setRequestHeader(header, value)
+
+  if options.body then xhr.send(options.body) else xhr.send()
 
 position = (element, top, left, width, height) ->
   element.style.top    = "#{top}px"
@@ -195,12 +238,55 @@ editHandler = (e) ->
   return if welcomeOverlay
 
   #currentElement.removeAttribute("contentEditable") if currentElement
-  #currentElement = e.target
-  #contentBeforeEdit = currentElement.outerHTML
+  currentElement = e.target
+  contentBeforeEdit = currentElement.outerHTML
   #currentElement.contentEditable = true
   #currentElement.focus()
   #highlightElement.style.display = "none"
+  console.log("Content: " + contentBeforeEdit)
   return console.log("Current selector: " + uniqueSelector(e.target))
+
+saveHandler = (e) ->
+  e.preventDefault()
+  # Get the content of the current selected element
+  contentHtml = e.target.outerHTML
+  # Transform to md, and imgs (if have)
+  contentMd = md(contentHtml)
+  console.log(contentMd)
+  # upload the md, and images to server, with a manifest, sha1 accompanied
+  files = []
+  files.push({path: 'index.md', content: contentMd})
+  upload(files)
+
+upload = (files) ->
+  articleHost = "http://localhost:3000"
+  # Create a manifest of all the file paths and their sha1 digests
+  manifest = {}
+  for file in files
+    manifest[file.path] = sha1.hash(file.content).toString()
+
+  ajax "POST", "#{articleHost}/article", {
+    headers: {"Content-Type": "application/json"}
+    body: JSON.stringify({
+      files: manifest
+    })
+  }, (err, xhr) ->
+    return alert("Failed to apply article ID when uploading") if err
+
+    # Get the article ID at response text: article.id
+    article = JSON.parse(xhr.responseText)
+
+    for file in files
+      do (file) ->
+        ajax "PUT", "#{articleHost}/article/#{article.id}/#{file.path}", {
+          headers: {"Content-Type": "application/octet-stream"}
+          body: file.content
+        }, (err, xhr) ->
+          return console.log("Failed to upload file: " + file.path) if err
+    console.log("Uploading done!")
+
+bindElement = ->
+  # Bind the current active element when hover
 
 bindTextElements = ->
   elements = document.querySelectorAll("h1, h2, h3, h4, h5, h6, div, p, a, span, small, blockquote, label, cite, li")
@@ -211,7 +297,7 @@ bindTextElements = ->
     continue unless textNodes.length
 
     element.addEventListener('mouseover', hoverHandler, false)
-    element.addEventListener('click', editHandler, false)
+    element.addEventListener('click', saveHandler, false)
     # element.addEventListener('blur', blurHandler, false)
 
 bindImgElements = ->
