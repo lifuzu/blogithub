@@ -1,4 +1,6 @@
-var express = require('express');
+var express = require('express'),
+    fs      = require('fs'),
+    path    = require('path');
 var app = express();
 
 app.use(express.logger());
@@ -17,8 +19,15 @@ app.post('/article', function(req, res) {
 });
 
 app.put('/article/:artid/:filepath', function(req, res) {
-  console.log("article id: " + req.params.artid + ", filepath: " + req.params.filepath);
-  res.send({article_id: req.params.artid, file_path: req.params.filepath});
+  // console.log("article id:  " + req.params.artid + ", filepath: " + req.params.filepath);
+  savedir = path.join('uploads', req.params.artid);
+  fs.exists(savedir, function(exists) {
+    if(!exists) {
+      fs.mkdirSync(savedir);
+    }
+    req.pipe(fs.createWriteStream(path.join(savedir, req.params.filepath)));
+    res.send({article_id: req.params.artid, file_path: req.params.filepath});
+  });
 });
 
 app.listen(3000);
